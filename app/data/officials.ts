@@ -138,13 +138,11 @@ async function loadOfficials(source: 'default' | 'server' | 'cache' = 'default')
     
     const officials: Official[] = [];
     querySnapshot.forEach((docSnapshot) => {
-      const data = docSnapshot.data() as Official;
-      // Ensure saln_records is an array and slug is set
-      officials.push({
-        ...data,
-        slug: data.slug || docSnapshot.id,
-        saln_records: data.saln_records || []
-      });
+      const data = docSnapshot.data();
+      const official = validateOfficial(data);
+      if (official) {
+        officials.push(official);
+      }
     });
 
     return officials;
@@ -158,12 +156,11 @@ async function loadOfficials(source: 'default' | 'server' | 'cache' = 'default')
         const cacheSnapshot = await getDocsFromCache(officialsCollection);
         const officials: Official[] = [];
         cacheSnapshot.forEach((docSnapshot) => {
-          const data = docSnapshot.data() as Official;
-          officials.push({
-            ...data,
-            slug: data.slug || docSnapshot.id,
-            saln_records: data.saln_records || []
-          });
+          const data = docSnapshot.data();
+          const official = validateOfficial(data);
+          if (official) {
+            officials.push(official);
+          }
         });
         return officials;
       } catch (cacheError) {
@@ -173,6 +170,43 @@ async function loadOfficials(source: 'default' | 'server' | 'cache' = 'default')
     
     return [];
   }
+}
+
+/**
+ * Type guard: Validates Firestore data matches Official interface
+ * Uses constants derived from type definitions - no enum duplication
+ */
+function validateOfficial(data: any): Official | null {
+  // Validate required string fields
+  if (!data.name || typeof data.name !== 'string' || !data.name.trim()) {
+    return null;
+  }
+
+  if (!data.position || typeof data.position !== 'string' || !data.position.trim()) {
+    return null;
+  }
+
+  // Validate enum fields
+  if (!data.agency || !['EXECUTIVE', 'LEGISLATIVE', 'CONSTITUTIONAL_COMMISSION', 'JUDICIARY'].includes(data.agency)) {
+    return null;
+  }
+
+  if (!data.status || !['active', 'inactive'].includes(data.status)) {
+    return null;
+  }
+
+  const official: Official = {
+    slug: data.slug || '',
+    name: data.name.trim(),
+    position: data.position.trim(),
+    agency: data.agency as Agency,
+    status: data.status,
+    term_start: data.term_start,
+    term_end: data.term_end,
+    saln_records: data.saln_records || []
+  };
+
+  return official;
 }
 
 /**
